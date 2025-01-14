@@ -15,14 +15,13 @@ app.use(cookieParser());
 
 
 
+// routes import 
+import userRouter from "./routes/user.routes.js"
+
+// router declaration
+app.use("/api/v1/users", userRouter);
 
 
-
-
-
-
-
-
-
+// url banega http://localhost:8000/users/register
 
 export {app};
