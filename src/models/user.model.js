@@ -57,6 +57,7 @@ const userSchema = new Schema(
     timestamps:true
 });
 
+// writing middleware
 userSchema.pre("save", async function (next) {
     if(!this.isModified("password")) return next();
 
@@ -64,9 +65,11 @@ userSchema.pre("save", async function (next) {
     next()
 });
 
+// check possword
 userSchema.methods.isPasswordCorrect = async function (password) {
    return  await bcrypt.compare(password, this.password) 
 }
+
 
 userSchema.methods.generateAccessToken = function(){
     return jwt.sign({
