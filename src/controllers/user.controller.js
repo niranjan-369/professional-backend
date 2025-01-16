@@ -7,7 +7,23 @@ import {ApiResponse} from  "../utils/ApiResponse.js"
 import { sendMail } from "../utils/mailerservice.js"; // Import sendMail from mailService
 
 
+// hum use kagrenge access token ko baar baar isliye hum method bana rahe hai
+const generateAccessAndRefreshTokens = async(userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
 
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false })
+        
+        return {accessToken, refreshToken}
+
+    } catch (error) {
+        throw new ApiError(500,"something went wrong while generating refresh and access token. ")
+    }
+
+}
 
 
 
@@ -127,43 +143,111 @@ const registerUser = asyncHandler( async (req, res) =>{
 
 
 const loginUser = asyncHandler(async (req, res) => {
-    console.log("indise the function");
-    const { email, password } = req.body;
+/*  steps to register user
+    1 step req body -> data
+    2 username or email
+    3 find the user
+    4 check password
+    5 access and refresh token
+    6 send cookiees
+    7 send response
+*/ 
 
-    console.log(`Email: ${email}  | Password: ${password}`);
+    
+    const { email, username, password } = req.body;
+
+    console.log(`USernam: ${username}  | Email: ${email}  | Password: ${password}`);
 
 
-    if( (!password || password.trim() == "") && (!email || email.trim() == "") ){
-        throw new ApiError(400,"email and password filed is empty.")
+    if( (!password || password.trim() == "") && (!email || email.trim() == "") && (!username || username.trim() === "" )){
+        throw new ApiError(400,"All fields empty.")
     }
 
-    if (!email || email.trim() === "") {
-        throw new ApiError(400, "Email field is empty.");
+    if ( (!email || email.trim() === "" )  && (!username || username.trim() === "" )) {
+        throw new ApiError(400, "Email or username required.");
     }
 
     if (!password || password.trim() === "") {
-        throw new ApiError(400, "Password field is empty.");
+        throw new ApiError(400, "Password required.");
     }
 
-    console.log("Required fields are filled.");
 
-    const usermail = await User.findOne({ email });
+    const user = await User.findOne({ $or:[
+        {email},
+        {username}
+    ]});
 
-    if (!usermail) {
-        throw new ApiError(404, "Email is invalid.");
+    if (!user) {
+        throw new ApiError(404, "Email or user is invalid.");
     }
 
-    const validPassword = await usermail.isPasswordCorrect(password);
+    const isValidPassword = await user.isPasswordCorrect(password);
 
-    if (!validPassword) {
-        throw new ApiError(401, "Password is incorrect.");
+    if (!isValidPassword) {
+        throw new ApiError(401, "Invalid user credentails. ");
     }
 
-    res.status(200).json(new ApiResponse(200, usermail, "User successfully logged-in"));
+   
+    const{accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id)
+
+    const loggedInUser = await User.findById(user._id).select(" -password -refreshToken ")
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+
+    
+    // |this  syntax is same as below note: .json() is not used |  
+    //return res.status(200).cookie("accessToken",accessToken).cookie("refreshToken",refreshToken)
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken",refreshToken, options)
+    .json(new ApiResponse(
+            200,
+            {
+                user: loggedInUser, accessToken,
+                refreshToken
+            },
+            "user Logged In Successfully"
+        )
+    )
+
 });
+
+
+const logoutUser = asyncHandler( async(req, res) =>{
+    /* so lets say ki hum user ko logout karna chahte hai to kaise karenge || iss karne ke liye user ka accessToken aur refreshToken delete karenge jo cookie mein hai || aur db mein refreshToken Field ko empty karenge*/ 
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {refreshToken: undefined }
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken",accessToken,options)
+    .clearCookie("refreshToken",refreshToken, options)
+    .json(new ApiResponse(200,{ },"user logout Successfully"))
+
+
+})
 
 
 export {
     registerUser, 
-    loginUser
+    loginUser,
+    logoutUser
 };
