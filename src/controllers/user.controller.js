@@ -2,7 +2,18 @@ import {asyncHandler} from "../utils/asyncHandler.js";
 import {ApiError}  from "../utils/ApiError.js"
 import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
-import {ApiResponse} from  "../"
+import {ApiResponse} from  "../utils/ApiResponse.js"
+
+import { sendMail } from "../utils/mailerservice.js"; // Import sendMail from mailService
+
+
+
+
+
+
+
+
+
 
 const registerUser = asyncHandler( async (req, res) =>{
     //steps to register user by me
@@ -31,8 +42,9 @@ const registerUser = asyncHandler( async (req, res) =>{
         //     throw new ApiError(400,"fullname is required";)
         // }
 
+        //to check if the filed is valid
         if(
-            [fullName, email, username, password].some((field) => filed?.trim()=="")
+            [fullName, email, username, password].some((field) => field?.trim()=="")
         ){
             throw new ApiError(400, "All fileds are required.")
         }
@@ -42,8 +54,8 @@ const registerUser = asyncHandler( async (req, res) =>{
         //     $or: [{username}, {email}]
         // })
 
-        const existUserName = User.findOne({username});
-        const existUserEmail = User.findOne({email});
+        const existUserName = await User.findOne({username});
+        const existUserEmail = await User.findOne({email});
        
         console.log(existUserEmail);
 
@@ -57,7 +69,12 @@ const registerUser = asyncHandler( async (req, res) =>{
 
         // check for image and  avatar
         const avatarLocalPath = req.files?.avatar[0]?.path;
-        const coverImageLocalPath = req.files?.coverImage[0]?.path;
+        // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+        let coverImageLocalPath;
+
+        if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length >0){
+            coverImageLocalPath = req.files.coverImage[0].path;
+        }
 
         if(!avatarLocalPath){
             throw new ApiError(400, "Avatar file is required.");
@@ -77,7 +94,7 @@ const registerUser = asyncHandler( async (req, res) =>{
             coverImage: coverImage?.url || "",
             email,
             password,
-            username: username.toLowercase()
+            username: username.toLowerCase()
         })
 
         const createdUser = await User.findById(user._id).select(
@@ -86,15 +103,67 @@ const registerUser = asyncHandler( async (req, res) =>{
 
         if(!createdUser){
             throw new ApiError(500,"something Went wrong while registering the user.")
+        }else{
+            // email sercive used 
+            const receiverMail = email;
+            const subject = "Register successful ";
+            const mailData = {
+            username:fullName,
+            message: "You've made an excellent choice by joining our community! At Pawsome Pets, we're dedicated to providing top-notch care and unparalleled service to you and your beloved pet. Our team of professionals is passionate about delivering exceptional experiences, ensuring your pet receives the love, attention, and expertise they deserve. We're committed to exceeding your expectations and building a lifelong relationship with you and your furry friend!"
+
+            }
+
+            await sendMail(receiverMail, subject, mailData);
         }
 
+
+
+        console.log(createdUser);
+        
         res.status(201).json(
             new ApiResponse(200,createdUser,"user registered successfully")
         )
 } )
 
 
+const loginUser = asyncHandler(async (req, res) => {
+    console.log("indise the function");
+    const { email, password } = req.body;
+
+    console.log(`Email: ${email}  | Password: ${password}`);
 
 
+    if( (!password || password.trim() == "") && (!email || email.trim() == "") ){
+        throw new ApiError(400,"email and password filed is empty.")
+    }
 
-export {registerUser};
+    if (!email || email.trim() === "") {
+        throw new ApiError(400, "Email field is empty.");
+    }
+
+    if (!password || password.trim() === "") {
+        throw new ApiError(400, "Password field is empty.");
+    }
+
+    console.log("Required fields are filled.");
+
+    const usermail = await User.findOne({ email });
+
+    if (!usermail) {
+        throw new ApiError(404, "Email is invalid.");
+    }
+
+    const validPassword = await usermail.isPasswordCorrect(password);
+
+    if (!validPassword) {
+        throw new ApiError(401, "Password is incorrect.");
+    }
+
+    res.status(200).json(new ApiResponse(200, usermail, "User successfully logged-in"));
+});
+
+
+export {
+    registerUser, 
+    loginUser
+};
