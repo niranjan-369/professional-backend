@@ -124,11 +124,11 @@ const registerUser = asyncHandler( async (req, res) =>{
             const receiverMail = email;
             const subject = "Register successful ";
             const mailData = {
-            username:fullName,
+            username:`Dear, ${fullName}`,
             message: "You've made an excellent choice by joining our community! At Pawsome Pets, we're dedicated to providing top-notch care and unparalleled service to you and your beloved pet. Our team of professionals is passionate about delivering exceptional experiences, ensuring your pet receives the love, attention, and expertise they deserve. We're committed to exceeding your expectations and building a lifelong relationship with you and your furry friend!"
 
             }
-
+            
             await sendMail(receiverMail, subject, mailData);
         }
 
@@ -294,9 +294,114 @@ const refreshUserToken = asyncHandler( async(req, res) =>{
 
 }) 
 
+const changeCurrentPassword = asyncHandler( async(req, res) =>{
+
+    const {oldPassword, newPassword} = req.body
+
+    const user = await User.findById(req.user._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if(!isPasswordCorrect){
+        throw new ApiError(400, "Invalid old password")
+    }
+
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,{},"password changed successfully"))
+})
+
+const getCurrentUser = asyncHandler( async(req, res) =>{
+    
+    const getUserData = await User.findById(req.user._id).select("-password -refreshToken")
+    
+    if(!getUserData){
+        throw new ApiError(404,"invalid access.")
+    }
+
+    return res.status(200).json(new ApiResponse(201, getUserData, "successfully fetched user data"));
+})
+
+let storedotp;
+const resetUserPassword = asyncHandler( async(req, res) => {
+    const reqType = req.params.type;
+    
+    
+    if(reqType === "verify-email" || reqType === "verify-otp" || reqType === "reset-pwd") {
+        const { email } = req.body;
+        
+        const user = await User.findOne({ email });
+
+        if(reqType === "verify-email") {
+            const getuser = user;
+            if(!getuser) {
+                throw new ApiError("Invalid email ... retry with correct mail");
+            }
+
+            let randomOtp; 
+            // Function to generate a random 6-digit number
+            function generateRandomNumber(){
+                return Math.floor(100000 + Math.random() * 900000).toString();
+            }
+        
+            // Generate a random number 
+            randomOtp = generateRandomNumber();
+
+            const usermail = email;
+            const subject = "password reset mail";
+            const userData = {
+                username: " ",
+                message: `yours otp is: ${randomOtp} please verify quickly..`
+            };
+            
+            storedotp = randomOtp;
+            await sendMail(usermail, subject, userData);
+            return res.status(200).json(200,{},"email verified and otp sent to email.")
+
+        }
+
+        if (reqType === "verify-otp") {
+            let { userOtp } = req.body;
+            console.log(storedotp)
+            if(storedotp === userOtp) {
+               return res.status(200).json(new ApiResponse(201, {}, "otp-checked validated."));
+            } else {
+                throw new ApiError(404, "invalid otp");
+            }
+        } 
+
+        if (reqType === "reset-pwd") {
+            const { newPassword , email} = req.body;
+
+            // always wait for the asynchrones nature of the await in combination
+            const user = await User.findOne({email});
+ 
+            console.log(user)
+            console.log(user.pa)
+            user.password = newPassword
+
+            await user.save({validateBeforeSave: false})
+
+             return res
+            .status(200)
+            .json(new ApiResponse(200,{},"password changed successfully"))
+        } 
+    }
+});
 
 
+const getUSerChannelProfile = asyncHandler( async(req, res) => {
 
+    const { username } = req.params
+
+    if(!username?.trim()){
+        throw new ApiError(400, "username is missing")
+    }
+
+
+} )
 
 
 
@@ -304,5 +409,9 @@ export {
     registerUser, 
     loginUser,
     logoutUser,
-    refreshUserToken
+    refreshUserToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    resetUserPassword,
+    getUSerChannelProfile
 };

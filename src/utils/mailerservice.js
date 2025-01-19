@@ -26,7 +26,7 @@ const sendMail = async (to, subject, data) => {
                     <div style="display: flex; justify-content: center; align-items: center; font-family:sans-serif; height: 100vh; background-color:rgb(173, 238, 135);">
                         <div style="text-align: left; padding: 20px; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);"> 
                         <h1>Welcome to Our PawSome Pets Family!</h1> 
-                        <p style="font-size:18px ; font-wieght:600;" >Dear ${data.username.toUpperCase()},</p>
+                        <p style="font-size:18px ; font-wieght:600;" >${data.username.toUpperCase()},</p>
                         <p style="font-size:16px ; font-wieght:600;">${data.message}</p></br>
                         <p style="font-size:18px ; font-wieght:600;">Best Regards,</p>
                         <p style="font-size:18px ; font-wieght:600;">By PawSome Pets Team.</p> 
